@@ -43,29 +43,29 @@ void* handle_client(void* socket_desc) {
     }
 
     if (op_code == 101) { 
-        Task incoming_task;
-        recv(new_socket, &incoming_task, sizeof(Task), 0);
+        Task my_task;
+        recv(new_socket, &my_task, sizeof(Task), 0);
         
         pthread_mutex_lock(&tasks_mutex);
         if (task_count < MAX_TASKS) {
-            task_list[task_count] = incoming_task;
+            task_list[task_count] = my_task;
             task_count++;
-            printf("[LOG] Task Added -> ID: %d, Title: %s\n", incoming_task.id, incoming_task.title);
-            save_tasks_to_file(); 
-            send(new_socket, "100 OK: Task Synced", 20, 0); 
+            save_tasks_to_file();
+            char *msg = "Task added successfully on Server.";
+            send(new_socket, msg, strlen(msg) + 1, 0);
         } else {
-            send(new_socket, "500 Error: Server Full", 23, 0); 
+            char *msg = "Server task list is full.";
+            send(new_socket, msg, strlen(msg) + 1, 0);
         }
         pthread_mutex_unlock(&tasks_mutex);
-
-    } else if (op_code == 202) { 
+    } 
+    else if (op_code == 202) { 
         pthread_mutex_lock(&tasks_mutex);
         send(new_socket, &task_count, sizeof(int), 0);
         if (task_count > 0) {
             send(new_socket, task_list, sizeof(Task) * task_count, 0);
         }
         pthread_mutex_unlock(&tasks_mutex);
-        printf("[LOG] Sent task list to client. Total tasks: %d\n", task_count);
     }
 
     close(new_socket);
@@ -94,30 +94,28 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    if (listen(server_fd, 10) < 0) { 
+    if (listen(server_fd, 10) < 0) {
         perror("Listen failed");
         exit(EXIT_FAILURE);
     }
 
-    printf("[INFO] TaskServer Pro (v2) is running on port %d with Multithreading support...\n", PORT);
+    printf("[INFO] TaskServer Pro Centralized Server is running on port %d...\n", PORT);
 
     while (1) {
         int client_sock = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen);
         if (client_sock < 0) {
-            perror("Accept failed");
             continue;
         }
-
+        
         pthread_t sniffer_thread;
         new_sock = malloc(1);
         *new_sock = client_sock;
-
+        
         if (pthread_create(&sniffer_thread, NULL, handle_client, (void*)new_sock) < 0) {
             perror("Could not create thread");
             free(new_sock);
-            continue;
         }
-        pthread_detach(sniffer_thread); 
+        pthread_detach(sniffer_thread);
     }
 
     close(server_fd);
